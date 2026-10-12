@@ -3,7 +3,8 @@
 - 작성일: 2026-10-04
 - 상태: 확정 (2026-10-04)
 - 앞 문서: `01-requirements.md`
-- 기준 DB: PostgreSQL (고른 이유는 4단계 ADR에 적는다)
+- 기준 DB: PostgreSQL (고른 이유는 `04-architecture.md` 3절, `adr/001`)
+- 2026-10-12 추가: `refresh_tokens` 테이블(4.1), `idx_rooms_name`(4.5). `03-api.md` 12절에서 넘어온 것
 
 순서: 1 개념 → 2 관계 → 3 규칙 → 4 테이블 → 5 어려운 부분
 
@@ -161,6 +162,23 @@ create table user_stats (
 
 비밀번호는 원문을 저장하지 않고 해시만 저장한다. 이메일 대소문자를 어떻게 다룰지는 구현 때 정한다.
 
+```sql
+create table refresh_tokens (
+  id         uuid primary key default gen_random_uuid(),
+  user_id    uuid not null references users(id) on delete cascade,
+  token_hash text not null unique,
+  expires_at timestamptz not null,
+  revoked_at timestamptz,
+  created_at timestamptz not null default now()
+);
+create index idx_refresh_tokens_user on refresh_tokens (user_id);
+```
+
+갱신 토큰(`03-api.md` 1.5절)은 원문을 쿠키에만 두고 DB에는 해시만 둔다. DB가 새어 나가도 토큰을 못 쓰게 하려는 것이다.
+`POST /auth/refresh`가 올 때마다 새 줄을 넣고 옛 줄에 `revoked_at`을 찍는다. 로그아웃도 `revoked_at`을 찍는 것이다.
+이미 `revoked_at`이 찍힌 토큰이 다시 오면 누가 훔쳐 쓰는 것일 수 있으니 그 사용자의 토큰을 전부 폐기한다.
+만료되거나 폐기된 줄은 예약 작업이 지운다 (`04-architecture.md` 6절).
+
 ### 4.2 측정
 
 ```sql
@@ -300,6 +318,7 @@ create table rooms (
   created_at   timestamptz not null default now()
 );
 create index idx_rooms_public on rooms (created_at desc) where is_public;
+create index idx_rooms_name on rooms using gin (name gin_trgm_ops) where is_public;
 
 create table room_members (
   room_id   uuid not null references rooms(id) on delete cascade,
@@ -330,6 +349,7 @@ create table reports (
 
 `rooms.owner_id`에는 `on delete cascade`를 걸지 않았다. 방장이 탈퇴한다고 방이 통째로 사라지면 안 되고, R-10대로 방장을 넘긴 뒤에 지워야 한다. 이 순서는 서버 코드가 맡는다.
 `member_count`는 `room_members`를 세면 나오는 값인데 따로 둔다. 이유는 5.5.
+`idx_rooms_name`은 `GET /rooms?q=`의 부분 일치 검색용이다. `pg_trgm` 확장이 필요하므로 첫 마이그레이션에서 `create extension if not exists pg_trgm`을 먼저 한다. 공개 방만 검색되니 `where is_public`을 붙여 인덱스를 작게 유지한다.
 
 ### 4.6 칭찬 도장
 

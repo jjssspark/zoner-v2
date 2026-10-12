@@ -1,0 +1,16 @@
+# 편집기·OS
+.vscode/
+.idea/
+.DS_Store
+
+# 비밀값
+.env
+.env.*
+!.env.example
+
+# 빌드·의존성 (backend/, frontend/ 생기면 쓰임)
+node_modules/
+dist/
+build/
+.gradle/
+*.log
