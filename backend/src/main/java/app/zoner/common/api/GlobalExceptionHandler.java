@@ -8,6 +8,7 @@ import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -36,6 +37,11 @@ public class GlobalExceptionHandler {
     ResponseEntity<ApiResponse<Void>> handleUnreadable(HttpMessageNotReadableException e) {
         return ResponseEntity.status(ErrorCode.VALIDATION_FAILED.status())
                 .body(ApiResponse.error(ErrorCode.VALIDATION_FAILED));
+    }
+
+    @ExceptionHandler(NoResourceFoundException.class)
+    ResponseEntity<ApiResponse<Void>> handleNotFound(NoResourceFoundException e) {
+        return ResponseEntity.status(ErrorCode.NOT_FOUND.status()).body(ApiResponse.error(ErrorCode.NOT_FOUND));
     }
 
     @ExceptionHandler(Exception.class)

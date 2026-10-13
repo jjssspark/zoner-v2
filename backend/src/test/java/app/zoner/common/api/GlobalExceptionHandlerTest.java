@@ -75,6 +75,14 @@ class GlobalExceptionHandlerTest extends AbstractIntegrationTest {
     }
 
     @Test
+    void unknown_path_is_404_not_500() throws Exception {
+        mvc.perform(get("/api/v1/_probe/no-such-path"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.error.code").value("NOT_FOUND"));
+    }
+
+    @Test
     void empty_body_is_400_not_500() throws Exception {
         mvc.perform(post("/api/v1/_probe/validate").contentType(MediaType.APPLICATION_JSON))
                 .andExpect(status().isBadRequest())
