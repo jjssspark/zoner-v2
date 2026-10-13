@@ -19,7 +19,9 @@ v2는 백엔드를 직접 만드는 게 목적이다. 인증, 토큰, 트랜잭�
 
 ## 결정
 
-A. Java 21 + Spring Boot 3.5.
+A. Java 21 + Spring Boot 4.1.
+
+처음엔 3.5로 적었다가 확인해 보니 3.5는 2026-06-30에 OSS 지원이 끝났다. 4.0은 2026-12-31까지라 짧고, 4.1(2026-06 출시)이 지금 시작하기에 맞다. 회사가 3.x를 쓰더라도 Security·JPA·트랜잭션의 쓰는 법은 같고, 바뀐 건 스타터 이름(`starter-web` → `starter-webmvc`)과 Jackson 3 정도다.
 
 ## 이유
 
@@ -31,6 +33,7 @@ B는 반쯤 끌렸다. 하지만 Kotlin 문법을 배우는 시간이 Spring을 
 
 - 기동에 메모리 300~500MB. 무료 PaaS(Render 512MB, Fly.io 256MB)로는 못 간다 → ADR-002
 - 코드 양이 C, D보다 많다. 보일러플레이트는 Lombok 없이 Java 21 record로 줄인다
+- Boot 4는 Jackson 3를 쓴다. Jackson 2에 묶인 라이브러리(`jjwt` 등)는 못 쓴다. JWT는 Spring Security의 Nimbus 모듈로 한다
 
 ## 다시 볼 조건
 

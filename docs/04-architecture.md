@@ -48,7 +48,7 @@ zoner-v2/
 | 항목 | 선택 | 한 줄 이유 |
 |---|---|---|
 | 언어 | Java 21 | 회사 스택과 같다. 배운 게 그대로 업무에 쓰인다 (ADR-001) |
-| 프레임워크 | Spring Boot 3.5 | 같은 이유 |
+| 프레임워크 | Spring Boot 4.1 | 같은 이유. 3.5는 2026-06-30에 OSS 지원이 끝났다 (ADR-001) |
 | 빌드 | Gradle (Kotlin DSL) | Maven보다 빌드 스크립트가 짧고 캐시가 빠르다 |
 | 인증 | Spring Security + JWT 직접 발급 | 접근 토큰은 서명만 검사, 갱신 토큰은 DB에 해시로 저장 (`03-api.md` 1.5절) |
 | DB 접근 | Spring Data JPA | 단순 CRUD는 JPA, 통계 쿼리와 `member_count` 갱신 같은 건 네이티브 SQL |
@@ -57,7 +57,7 @@ zoner-v2/
 | 요청 횟수 제한 | Bucket4j (메모리) | 서버 한 대라 공유 저장소가 필요 없다 |
 | 캐시·메시지 브로커 | 없음 | 지금 쓸 곳이 없다 (ADR-003) |
 
-JWT 라이브러리는 `jjwt`. 비밀번호는 `BCryptPasswordEncoder`.
+JWT는 Spring Security에 들어 있는 Nimbus(`spring-security-oauth2-jose`)의 `NimbusJwtEncoder`/`NimbusJwtDecoder`로 HS256 서명한다. `jjwt`는 Boot 4의 Jackson 3와 안 맞아서 안 쓴다. 비밀번호는 `BCryptPasswordEncoder`.
 
 ## 4. 프론트엔드
 
