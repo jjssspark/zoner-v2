@@ -12,6 +12,9 @@
 
 | ID | 날짜 | 문제 | 상태 |
 |---|---|---|---|
+| TS-009 | 2026-10-13 | 로그인 횟수 제한이 `/auth/log%69n`처럼 글자 하나만 인코딩하면 그냥 통과. 필터가 `getRequestURI()` 원문을 문자열 비교했는데 Spring MVC·Security는 디코딩된 경로로 매칭한다 | 해결 |
+| TS-008 | 2026-10-13 | MockMvc에서 `post("/…/log%69n")` 문자열로 보내면 `%`가 다시 인코딩돼 `%2569`가 되고 방화벽이 400으로 거부. 재현하려면 `URI` 객체로 넘겨야 한다 | 해결 |
+| TS-007 | 2026-10-13 | 커스텀 제약 애노테이션의 `@Target`을 고쳤는데 계속 안 걸림. Gradle 증분 컴파일이 그 애노테이션을 쓰는 레코드를 다시 컴파일하지 않아 필드에 애노테이션이 안 붙은 채였다 | 해결 |
 | TS-006 | 2026-10-13 | 커스텀 필터를 기준으로 `addFilterBefore`를 했더니 "does not have a registered order"로 컨텍스트 전체가 안 뜸. 기준 필터를 먼저 등록해야 했다 | 해결 |
 | TS-005 | 2026-10-13 | 없는 주소나 잘못된 메서드로 요청하면 404·405가 아니라 500 `INTERNAL_ERROR`. 전역 예외 처리의 catch-all이 스프링의 404·405 예외까지 삼켰다 | 해결 |
 | TS-004 | 2026-10-13 | 토큰 갱신이 500. `RefreshToken.user`가 LAZY 프록시인데 트랜잭션 밖(컨트롤러)에서 읽어 `LazyInitializationException` | 해결 |
@@ -239,3 +242,112 @@ Caused by: java.lang.IllegalArgumentException: The Filter class app.zoner.common
 
 배운 점
 테스트가 한꺼번에 수십 개 깨지면 첫 번째 실패의 `Caused by`만 본다. 나머지는 다 "컨텍스트 못 떠서"다.
+
+### TS-007: 애노테이션 `@Target`을 고쳤는데 Gradle 증분 컴파일이 쓰는 쪽을 다시 안 컴파일함
+
+날짜: 2026-10-13
+상태: 해결
+
+증상
+비밀번호 바이트 길이 제약 `@MaxUtf8Bytes`를 만들어 `SignupRequest`(record)에 붙였는데 검증이 전혀 안 걸리고 BCrypt까지 가서
+`IllegalArgumentException: password cannot be more than 72 bytes` → 500. 애노테이션 `@Target`에 `FIELD`를 추가하고 다시 돌려도 그대로.
+
+재현 조건
+1. `@Target(RECORD_COMPONENT)`만 있는 제약 애노테이션으로 한 번 컴파일
+2. `@Target`에 `FIELD, METHOD, PARAMETER`를 추가
+3. `./gradlew test` (clean 없이)
+
+원인
+record 컴포넌트에 붙은 애노테이션은 javac가 "그 애노테이션의 `@Target`이 허용하는 곳"(필드·접근자·생성자 매개변수)으로 복사한다.
+처음 컴파일 때는 `RECORD_COMPONENT`만 허용돼서 필드에 안 붙었고, Hibernate Validator는 필드·접근자만 보니 못 봤다.
+`@Target`을 고친 뒤에는 Gradle 증분 컴파일이 "애노테이션 타입의 `@Target` 변경"을 ABI 변경으로 안 봐서 `SignupRequest`를 다시 컴파일하지 않았다.
+그래서 클래스 파일에는 여전히 레코드 컴포넌트에만 붙어 있었다. 리플렉션으로 확인한 결과:
+```
+PROBE field=[@NotBlank(...), @Size(...)]
+PROBE rc password=[@MaxUtf8Bytes(value=72, ...)]
+```
+
+시도했지만 안 된 것
+- `@Target` 확장 후 그냥 재실행 → 같은 실패 (이게 함정)
+- 테스트 소스 안에 같은 애노테이션을 쓴 record/일반 클래스를 만들어 검증 → 둘 다 정상 동작. 그래서 "메인 클래스만 이상하다"는 걸 알았다
+
+해결
+`./gradlew clean` 뒤 재실행. 47개 통과.
+
+검증
+`password_over_72_bytes_is_400_with_field_not_500`, `overlong_password_on_login_is_400_not_500` 통과.
+
+추후 관리
+제약 애노테이션을 새로 만들 때는 처음부터 `@Target({FIELD, METHOD, PARAMETER, RECORD_COMPONENT})`로 둔다.
+애노테이션 정의를 고친 뒤 결과가 안 바뀌면 clean부터 한다.
+
+배운 점
+"코드는 맞는데 동작이 안 바뀐다"면 빌드 산출물이 옛날 것일 수 있다. 리플렉션으로 실제 클래스 파일에 뭐가 붙었는지 보는 게 가장 빠르다.
+
+### TS-008: MockMvc가 문자열 경로의 `%`를 다시 인코딩해 방화벽 400
+
+날짜: 2026-10-13
+상태: 해결
+
+증상
+횟수 제한 우회 테스트에서 `post("/api/v1/auth/log%69n")`을 보냈더니 429도 401도 아닌 본문 없는 400.
+
+재현 조건
+`MockMvcRequestBuilders.post(String)`에 퍼센트 인코딩이 들어간 경로를 넘김.
+
+원인
+`post(String)`은 `UriComponentsBuilder`로 경로를 다시 인코딩해서 `%`가 `%25`가 된다. 요청 URI가 `/log%2569n`이 되고
+Spring Security `StrictHttpFirewall`이 `%25`를 블록리스트로 거부했다:
+```
+RequestRejectedException: The request was rejected because the URL contained a potentially malicious String "%25"
+	at StrictHttpFirewall.rejectedBlocklistedUrls(StrictHttpFirewall.java:548)
+```
+
+시도했지만 안 된 것
+없음. `logging.level.org.springframework.security.web=DEBUG`를 테스트 프로퍼티로 잠깐 켜서 바로 봤다.
+
+해결
+`post(URI.create("/api/v1/auth/log%69n"))`처럼 `URI` 객체로 넘기면 이미 인코딩된 것으로 보고 그대로 보낸다.
+
+검증
+같은 테스트가 수정 전 401(핸들러까지 도달 = 우회 성공), 수정 후 429.
+
+추후 관리
+인코딩된 경로를 테스트할 땐 항상 `URI` 오버로드.
+
+배운 점
+테스트 도구가 입력을 "친절하게" 고쳐 주는 경우가 있다. 예상 밖의 상태 코드가 나오면 실제로 서버가 받은 URI부터 확인한다.
+
+### TS-009: 글자 하나 인코딩으로 로그인 횟수 제한 우회
+
+날짜: 2026-10-13
+상태: 해결
+
+증상
+최종 코드 리뷰에서 지적. `POST /api/v1/auth/log%69n`을 보내면 횟수 제한 필터는 건너뛰고 로그인 핸들러는 정상 실행된다.
+테스트로 재현: 같은 IP에서 10번 뒤 11번째를 인코딩 경로로 보내면 429 대신 401 `AUTH_INVALID_CREDENTIALS`(핸들러 실행됨).
+
+재현 조건
+`AuthRateLimitFilter.shouldNotFilter`가 `req.getRequestURI()`(서블릿 스펙상 디코딩 안 된 원문)와 `"/api/v1/auth/login"`을 문자열로 비교.
+
+원인
+Spring MVC 핸들러 매핑과 Security의 `requestMatchers`는 디코딩된 경로로 매칭하는데, 필터만 원문을 비교했다.
+`StrictHttpFirewall`은 `%2F`, `%25`, `%2E` 같은 위험한 것만 막고 `%69`(i) 같은 일반 글자 인코딩은 통과시킨다.
+결과: 무차별 대입을 늦추는 유일한 장치가 글자 하나로 무력화된다.
+
+시도했지만 안 된 것
+없음 (TS-008 때문에 재현 테스트를 한 번 고쳐 썼다).
+
+해결
+Security가 쓰는 것과 같은 `PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.POST, "/api/v1/auth/login")`로 판정.
+같은 매처를 쓰니 "필터와 보안 설정이 경로를 다르게 보는" 종류의 문제가 통째로 사라진다.
+
+검증
+`percent_encoded_path_cannot_bypass_the_limit` RED(401) → GREEN(429). 전체 47개 통과.
+
+추후 관리
+경로로 분기하는 필터를 새로 만들 땐 문자열 비교 금지. `RequestMatcher`를 쓴다.
+
+배운 점
+같은 요청을 여러 층(방화벽, 필터, 보안 설정, MVC)이 각자 해석하면 그 사이 틈이 공격면이 된다. 해석기를 하나로 통일한다.
+
