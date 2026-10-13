@@ -1,0 +1,11 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/zoner
+    username: zoner
+    password: zoner
+
+zoner:
+  jwt:
+    secret: local-dev-secret-must-be-at-least-32-bytes-long!!
+  auth:
+    cookie-secure: false
