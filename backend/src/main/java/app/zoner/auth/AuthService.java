@@ -22,6 +22,8 @@ public class AuthService {
     private final JwtProvider jwt;
     private final RefreshTokenService refreshTokens;
     private final EntityManager em;
+    // 없는 이메일에도 BCrypt를 한 번 돌려서 응답 시간으로 가입 여부가 새지 않게 한다
+    private final String dummyHash;
 
     public AuthService(UserRepository users, PasswordEncoder encoder, JwtProvider jwt,
                        RefreshTokenService refreshTokens, EntityManager em) {
@@ -30,6 +32,7 @@ public class AuthService {
         this.jwt = jwt;
         this.refreshTokens = refreshTokens;
         this.em = em;
+        this.dummyHash = encoder.encode("dummy-password-for-constant-time");
     }
 
     @Transactional
@@ -45,9 +48,9 @@ public class AuthService {
 
     @Transactional
     public AuthResult login(LoginRequest req) {
-        User user = users.findByEmail(req.normalizedEmail())
-                .filter(u -> encoder.matches(req.password(), u.getPasswordHash()))
-                .orElseThrow(() -> new ApiException(ErrorCode.AUTH_INVALID_CREDENTIALS));
+        User user = users.findByEmail(req.normalizedEmail()).orElse(null);
+        boolean matches = encoder.matches(req.password(), user != null ? user.getPasswordHash() : dummyHash);
+        if (user == null || !matches) throw new ApiException(ErrorCode.AUTH_INVALID_CREDENTIALS);
         return tokensFor(user);
     }
 

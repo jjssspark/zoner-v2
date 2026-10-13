@@ -5,6 +5,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.FieldError;
+import org.springframework.web.HttpMediaTypeNotSupportedException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -34,8 +35,9 @@ public class GlobalExceptionHandler {
                 .body(ApiResponse.error(ErrorCode.VALIDATION_FAILED, fields));
     }
 
-    @ExceptionHandler(HttpMessageNotReadableException.class)
-    ResponseEntity<ApiResponse<Void>> handleUnreadable(HttpMessageNotReadableException e) {
+    // 본문이 JSON이 아니거나(Content-Type 틀림) 깨졌거나 비어 있으면 전부 400
+    @ExceptionHandler({HttpMessageNotReadableException.class, HttpMediaTypeNotSupportedException.class})
+    ResponseEntity<ApiResponse<Void>> handleUnreadable(Exception e) {
         return ResponseEntity.status(ErrorCode.VALIDATION_FAILED.status())
                 .body(ApiResponse.error(ErrorCode.VALIDATION_FAILED));
     }

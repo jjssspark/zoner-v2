@@ -91,4 +91,12 @@ class SignupTest extends AbstractIntegrationTest {
         MvcResult r = AuthTestSupport.signup(mvc, "s7@example.com", "12345678", "여덟자");
         assertThat(r.getResponse().getStatus()).isEqualTo(201);
     }
+
+    @Test
+    void password_over_72_bytes_is_400_with_field_not_500() throws Exception {
+        // BCrypt는 72바이트까지만 받는다. 한글 25자는 75바이트라 문자 수 제한(72)으로는 못 거른다.
+        MvcResult r = AuthTestSupport.signup(mvc, "s8@example.com", "가".repeat(25), "긴비번");
+        assertThat(r.getResponse().getStatus()).isEqualTo(400);
+        assertThat(r.getResponse().getContentAsString()).contains("\"password\"");
+    }
 }

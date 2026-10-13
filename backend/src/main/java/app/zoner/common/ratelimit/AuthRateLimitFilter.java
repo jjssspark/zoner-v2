@@ -9,21 +9,28 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
+import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
+import org.springframework.security.web.util.matcher.RequestMatcher;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 import tools.jackson.databind.ObjectMapper;
 
 import java.io.IOException;
 import java.time.Duration;
+import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 @Component
 public class AuthRateLimitFilter extends OncePerRequestFilter {
 
-    private static final Set<String> LIMITED_PATHS = Set.of("/api/v1/auth/login", "/api/v1/auth/signup");
+    // getRequestURI() 원문을 문자열 비교하면 /log%69n 같은 인코딩 경로가 빠져나간다.
+    // Security의 requestMatchers와 같은 매처를 써서 디코딩된 경로로 판정한다.
+    private static final List<RequestMatcher> LIMITED = List.of(
+            PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.POST, "/api/v1/auth/login"),
+            PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.POST, "/api/v1/auth/signup"));
 
     // IP가 늘면 계속 커진다. 설계 기준(가입자 1만)에서는 문제가 안 되고, 거슬리면 Caffeine 캐시로 바꾼다.
     private final Map<String, Bucket> buckets = new ConcurrentHashMap<>();
@@ -38,7 +45,7 @@ public class AuthRateLimitFilter extends OncePerRequestFilter {
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest req) {
-        return !("POST".equals(req.getMethod()) && LIMITED_PATHS.contains(req.getRequestURI()));
+        return LIMITED.stream().noneMatch(m -> m.matches(req));
     }
 
     @Override

@@ -90,6 +90,15 @@ class GlobalExceptionHandlerTest extends AbstractIntegrationTest {
     }
 
     @Test
+    void non_json_content_type_is_400_not_500() throws Exception {
+        mvc.perform(post("/api/v1/_probe/validate")
+                        .contentType(MediaType.TEXT_PLAIN)
+                        .content("{\"nickname\":\"abc\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
+    }
+
+    @Test
     void empty_body_is_400_not_500() throws Exception {
         mvc.perform(post("/api/v1/_probe/validate").contentType(MediaType.APPLICATION_JSON))
                 .andExpect(status().isBadRequest())
