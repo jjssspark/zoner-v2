@@ -9,6 +9,7 @@ import app.zoner.user.User;
 import app.zoner.user.UserRepository;
 import app.zoner.user.UserStats;
 import jakarta.persistence.EntityManager;
+import org.hibernate.Hibernate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -48,6 +49,22 @@ public class AuthService {
                 .filter(u -> encoder.matches(req.password(), u.getPasswordHash()))
                 .orElseThrow(() -> new ApiException(ErrorCode.AUTH_INVALID_CREDENTIALS));
         return tokensFor(user);
+    }
+
+    // findUsable의 트랜잭션은 여기에 합류한다(REQUIRED). 바깥에도 noRollbackFor가 없으면
+    // 재사용 감지 때 한 revokeAllByUser가 ApiException과 함께 롤백된다.
+    @Transactional(noRollbackFor = ApiException.class)
+    public AuthResult refresh(String rawRefreshToken) {
+        RefreshToken old = refreshTokens.findUsable(rawRefreshToken);
+        old.revoke();
+        // user는 LAZY 프록시다. open-in-view가 꺼져 있어 컨트롤러에서 읽으면 세션이 없으니 여기서 풀어 둔다.
+        User user = Hibernate.unproxy(old.getUser(), User.class);
+        return tokensFor(user);
+    }
+
+    @Transactional
+    public void logout(String rawRefreshToken) {
+        refreshTokens.revoke(rawRefreshToken);
     }
 
     AuthResult tokensFor(User user) {
