@@ -21,7 +21,7 @@ public class SecurityConfig {
             .formLogin(f -> f.disable())
             .httpBasic(b -> b.disable())
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/actuator/health").permitAll()
+                .requestMatchers("/actuator/health", "/api/v1/_probe/**").permitAll()
                 .anyRequest().authenticated());
         return http.build();
     }
