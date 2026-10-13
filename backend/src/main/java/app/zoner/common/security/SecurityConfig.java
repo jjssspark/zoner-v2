@@ -1,5 +1,6 @@
 package app.zoner.common.security;
 
+import app.zoner.common.ratelimit.AuthRateLimitFilter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -15,10 +16,13 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 public class SecurityConfig {
 
     private final JwtAuthFilter jwtAuthFilter;
+    private final AuthRateLimitFilter authRateLimitFilter;
     private final ApiAuthEntryPoint entryPoint;
 
-    public SecurityConfig(JwtAuthFilter jwtAuthFilter, ApiAuthEntryPoint entryPoint) {
+    public SecurityConfig(JwtAuthFilter jwtAuthFilter, AuthRateLimitFilter authRateLimitFilter,
+                          ApiAuthEntryPoint entryPoint) {
         this.jwtAuthFilter = jwtAuthFilter;
+        this.authRateLimitFilter = authRateLimitFilter;
         this.entryPoint = entryPoint;
     }
 
@@ -35,7 +39,9 @@ public class SecurityConfig {
                 .requestMatchers("/api/v1/_probe/**").permitAll()
                 .requestMatchers("/api/v1/auth/signup", "/api/v1/auth/login", "/api/v1/auth/refresh", "/api/v1/auth/logout").permitAll()
                 .anyRequest().authenticated())
-            .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
+            // jwtAuthFilter를 먼저 등록해야 그 클래스를 기준으로 다른 필터를 앞에 둘 수 있다
+            .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
+            .addFilterBefore(authRateLimitFilter, JwtAuthFilter.class);
         return http.build();
     }
 

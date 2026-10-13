@@ -12,7 +12,9 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
 @AutoConfigureMockMvc
 @TestPropertySource(properties = {
         "zoner.jwt.secret=test-secret-that-is-definitely-longer-than-32-bytes",
-        "zoner.auth.cookie-secure=false"
+        "zoner.auth.cookie-secure=false",
+        // 다른 테스트들은 전부 127.0.0.1이라 한 JVM에서 분당 10회를 쉽게 넘긴다. 제한 테스트만 10으로 되돌린다.
+        "zoner.ratelimit.auth-per-minute=1000"
 })
 public abstract class AbstractIntegrationTest {
 

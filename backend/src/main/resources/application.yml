@@ -30,3 +30,5 @@ zoner:
     refresh-ttl: 14d
   auth:
     cookie-secure: true
+  ratelimit:
+    auth-per-minute: 10
