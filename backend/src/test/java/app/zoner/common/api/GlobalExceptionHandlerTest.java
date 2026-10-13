@@ -83,6 +83,13 @@ class GlobalExceptionHandlerTest extends AbstractIntegrationTest {
     }
 
     @Test
+    void wrong_method_is_405_not_500() throws Exception {
+        mvc.perform(post("/api/v1/_probe/boom"))
+                .andExpect(status().isMethodNotAllowed())
+                .andExpect(jsonPath("$.error.code").value("METHOD_NOT_ALLOWED"));
+    }
+
+    @Test
     void empty_body_is_400_not_500() throws Exception {
         mvc.perform(post("/api/v1/_probe/validate").contentType(MediaType.APPLICATION_JSON))
                 .andExpect(status().isBadRequest())

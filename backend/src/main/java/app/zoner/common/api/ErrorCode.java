@@ -10,6 +10,7 @@ public enum ErrorCode {
     EMAIL_TAKEN(HttpStatus.CONFLICT, "이미 가입된 이메일이에요."),
     NICKNAME_TAKEN(HttpStatus.CONFLICT, "이미 쓰고 있는 닉네임이에요."),
     NOT_FOUND(HttpStatus.NOT_FOUND, "없는 주소예요."),
+    METHOD_NOT_ALLOWED(HttpStatus.METHOD_NOT_ALLOWED, "지원하지 않는 요청 방식이에요."),
     RATE_LIMITED(HttpStatus.TOO_MANY_REQUESTS, "요청이 너무 많아요. 잠시 뒤에 다시 해 주세요."),
     INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "문제가 생겼어요. 잠시 뒤에 다시 해 주세요.");
 
